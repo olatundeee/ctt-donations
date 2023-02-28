@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 
 import QRious from 'qrious';
-import qr from 'qr.js';
 
 export default class QrCode extends Component {
 

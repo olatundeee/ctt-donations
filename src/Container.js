@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState } from 'react';
 import { Row, Col, Card, Button, Modal, Form, Input, Divider, Radio, Space, notification, Typography } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
-import {keychain, isKeychainInstalled, hasKeychainBeenUsed} from '@hiveio/keychain';
-import QrCode from './QRcode';
-import ops from "./services/ops";
 import axios from "axios";
 
 import cttLogo from './assets/cttLogo.png'
 import cttCover from './assets/cttCoverImg.png'
 
-const { Paragraph, Text } = Typography;
+const { Paragraph } = Typography;
 
 export default function Container() {
     const [ellipsis, setEllipsis] = useState(true);
@@ -34,7 +31,6 @@ export default function Container() {
     const [lightningQr, setLightningQr] = useState(false)
     const [straightToPlan, setStraightToPlan] = useState(false)
     const [qrDisp, setQrDisp] = useState(false)
-    const [showReveal, setShowReveal] = useState(false)
     const [hivePayModal, setHivePayModal] = useState(false)
 
     const getDonationAmountInCrypto = async (token) => {
