@@ -1,4 +1,4 @@
-import Container from '../Container';
+import Container from '../pages/home/Container';
 import Login from '../pages/login';
 
 const routes = [
