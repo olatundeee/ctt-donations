@@ -1,6 +1,3 @@
-
-import {keychain, isKeychainInstalled, hasKeychainBeenUsed} from '@hiveio/keychain'
-import { notification } from 'antd';
 import axios from 'axios';
 
 const API_URL = 'https://ctt-api.onrender.com'
