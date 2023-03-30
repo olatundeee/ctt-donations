@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useState, useRef } from "react";
 import {
   Row,
   Col,
@@ -15,12 +15,14 @@ import {
 } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import axios from "axios";
+import {keychain, isKeychainInstalled, hasKeychainBeenUsed} from '@hiveio/keychain'
 
 import cttLogo from "../../assets/cttLogo.png";
 import cttCover from "../../assets/cttCoverImg.png";
 import { useNavigate } from "react-router";
 
 const { Paragraph } = Typography;
+const environment = require('../../environment.json')
 
 export default function Container() {
   const [ellipsis, setEllipsis] = useState(true);
@@ -46,6 +48,8 @@ export default function Container() {
   const [straightToPlan, setStraightToPlan] = useState(false);
   const [qrDisp, setQrDisp] = useState(false);
   const [hivePayModal, setHivePayModal] = useState(false);
+  const [runRec, setRunRec] = useState(false);
+  const [subscriptionLength, setSubscriptionLength] = useState()
 
   const navigate = useNavigate();
 
@@ -59,38 +63,20 @@ export default function Container() {
 
     if (token === "hive") {
       tokenPrice = getTokenPrice.data.hive.usd;
-      setCryptoDonationAmount(
-        (donationAmount / tokenPrice).toFixed(3) + " HIVE"
-      );
+      return (donationAmount / tokenPrice).toFixed(3) + " HIVE";
     }
     if (token === "hive_dollar") {
       tokenPrice = getTokenPrice.data.hive_dollar.usd;
-      setCryptoDonationAmount(
-        (donationAmount / tokenPrice).toFixed(3) + " HBD"
-      );
+      return (donationAmount / tokenPrice).toFixed(3) + " HBD";
     }
     if (token === "bitcoin") {
       tokenPrice = getTokenPrice.data.bitcoin.usd;
-      setCryptoDonationAmount(
-        (donationAmount / tokenPrice).toFixed(8) + " BTC"
-      );
+      return (donationAmount / tokenPrice).toFixed(8) + " BTC";
     }
     if (token === "stellar") {
       tokenPrice = getTokenPrice.data.stellar.usd;
-      setCryptoDonationAmount(
-        (donationAmount / tokenPrice).toFixed(3) + " XLM"
-      );
+      return (donationAmount / tokenPrice).toFixed(3) + " XLM";
     }
-  };
-
-  const preparePaymentObj = () => {
-    let paymentObj = {};
-    paymentObj.name = donorFullName;
-    paymentObj.hiveUsername = donorHiveUsername;
-    paymentObj.email = donorEmail;
-    paymentObj.donationAmountInDollars = donationAmount;
-    paymentObj.donationAmountInCrypto = cryptoDonationAmount;
-    return paymentObj;
   };
 
   const showOneTimeModal = () => {
@@ -145,56 +131,64 @@ export default function Container() {
         case "hive":
           try {
             const donationInCrypto = await getDonationAmountInCrypto("hive");
-            const memo = `One time donation in support of cttpodcast of a total sum of ${donationAmount} HIVE`;
+            console.log('crypto amount',donationInCrypto)
+            const memo = `One time donation in support of cttpodcast of a total sum of ${donationInCrypto} HIVE`;
 
-            /*const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', 'test', 'therealwolf', 5,  'test memo', 'HIVE')
-                            if (isKeychainInstalled) {
-                                notification.open({
-                                    //message: 'Notification Title',
-                                    description:
-                                    'Loading, please wait',
-                                    onClick: () => {
-                                    console.log('Notification Clicked!');
-                                    },
-                                });
-                                const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', donorHiveUsername, 'cttpodcast', parseFloat(donationAmount).toFixed(3), memo, 'HIVE');
+            //const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', 'test', 'therealwolf', 5,  'test memo', 'HIVE')
+            if (isKeychainInstalled) {
+                notification.open({
+                    //message: 'Notification Title',
+                    description:
+                    'Loading, please wait',
+                    onClick: () => {
+                    console.log('Notification Clicked!');
+                    },
+                });
+                const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', donorHiveUsername, 'cttpodcast', parseFloat(donationInCrypto).toFixed(3), memo, 'HIVE');
 
-                                if (success) {
-                                    notification.open({
-                                        //message: 'Notification Title',
-                                        description:
-                                        'Transfer completed successfully, thank you for your donation',
-                                        onClick: () => {
-                                        console.log('Notification Clicked!');
-                                        },
-                                    });
-                                }
-                            } else {
-                                notification.open({
-                                    //message: 'Notification Title',
-                                    description:
-                                    'Please install and login to Hive keychain to transfer',
-                                    onClick: () => {
-                                    console.log('Notification Clicked!');
-                                    },
-                                });
-                            }
-                            console.log(donationAmount, typeof donationAmount)
-                        // All good
-                        if(success) {
-                        // do your thing
-                        }
-                        // User didn't cancel, so something must have happened
-                        else if(!cancel) {
-                        if(notActive) {
-                            // alert('Please allow Keychain to access this website')
-                        } else if(notInstalled) {
-                            // alert('Please install Keychain')
-                        } else {
-                            // error happened - check msg
-                        }
-                        }*/
+                if (success) {
+                    let paymentObj = {};
+                    paymentObj.name = donorFullName;
+                    paymentObj.hiveUsername = donorHiveUsername;
+                    paymentObj.email = donorEmail;
+                    paymentObj.donationAmountInDollars = donationAmount;
+                    paymentObj.donationAmountInCrypto = donationInCrypto;
+                    paymentObj.paymentOption = paymentOption;
+
+                    const savePayment = await axios.post(`${environment.staging}/save-payment`, paymentObj)
+
+                    if (savePayment.data.success) {
+                      notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Payment saved',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                      });
+                    }
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Transfer completed successfully, thank you for your donation',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                }
+            } else {
+                notification.open({
+                    //message: 'Notification Title',
+                    description:
+                    'Please install and login to Hive keychain to transfer',
+                    onClick: () => {
+                    console.log('Notification Clicked!');
+                    },
+                });
+            }
+            console.log(donationAmount, typeof donationAmount)
           } catch (error) {
+            console.log(error)
             notification.open({
               //message: 'Notification Title',
               description: "Error encountered, please try again",
@@ -206,70 +200,78 @@ export default function Container() {
           break;
         case "hbd":
           try {
-            const donationInCrypto = await getDonationAmountInCrypto(
-              "hive_dollar"
-            );
-            //const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', 'test', 'therealwolf', 5,  'test memo', 'HIVE')
+            const donationInCrypto = await getDonationAmountInCrypto("hive_dollar");
+            console.log('crypto amount',donationInCrypto)
 
-            // All good
-            /*if(success) {
-                            // do your thing
-                            if (isKeychainInstalled) {
-                                notification.open({
-                                    //message: 'Notification Title',
-                                    description:
-                                    'Loading, please wait',
-                                    onClick: () => {
-                                    console.log('Notification Clicked!');
-                                    },
-                                });
-                                
-                                const memo = `One time donation in support of cttpodcast`;
-                                console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationAmount).toFixed(3), memo)
+            const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', 'test', 'therealwolf', 5,  'test memo', 'HIVE');
+ 
+            // do your thing
+            if (isKeychainInstalled) {
+                console.log('installed')
+                notification.open({
+                    //message: 'Notification Title',
+                    description:
+                    'Loading, please wait',
+                    onClick: () => {
+                    console.log('Notification Clicked!');
+                    },
+                });
+                
+                const memo = `One time donation in support of cttpodcast`;
+                console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationInCrypto).toFixed(3), memo)
 
-                                let operation = [
-                                    "transfer",
-                                    {
-                                        "from": donorHiveUsername,
-                                        "to": 'cttpodcast',
-                                        "amount": parseFloat(donationAmount).toFixed(3) + " HBD",
-                                        "memo": memo
-                                    }
-                                ]
+                let operation = [
+                    "transfer",
+                    {
+                        "from": donorHiveUsername,
+                        "to": 'cttpodcast',
+                        "amount": parseFloat(donationInCrypto).toFixed(3) + " HBD",
+                        "memo": memo
+                    }
+                ]
 
-                                const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestBroadcast', donorHiveUsername, [operation], 'Active');
+                const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestBroadcast', donorHiveUsername, [operation], 'Active');
 
-                                if (success) {
-                                    notification.open({
-                                        //message: 'Notification Title',
-                                        description:
-                                        'Transfer completed successfully, thank you for your donation',
-                                        onClick: () => {
-                                        console.log('Notification Clicked!');
-                                        },
-                                    });
-                                }
-                            } else {
-                                notification.open({
-                                    //message: 'Notification Title',
-                                    description:
-                                    'Please install and login to Hive keychain to transfer',
-                                    onClick: () => {
-                                    console.log('Notification Clicked!');
-                                    },
-                                });
-                            }
-                        }
-                        // User didn't cancel, so something must have happened
-                        else if(!cancel) {
-                        if(notActive) {
-                            // alert('Please allow Keychain to access this website')
-                        } else if(notInstalled) {
-                            // alert('Please install Keychain')
-                        } else {
-                            // error happened - check msg
-                        }
-                        }*/
+                if (success) {
+                    let paymentObj = {};
+                    paymentObj.name = donorFullName;
+                    paymentObj.hiveUsername = donorHiveUsername;
+                    paymentObj.email = donorEmail;
+                    paymentObj.donationAmountInDollars = donationAmount;
+                    paymentObj.donationAmountInCrypto = donationInCrypto;
+                    paymentObj.paymentOption = paymentOption;
+
+                    const savePayment = await axios.post(`${environment.staging}/save-payment`, paymentObj)
+
+                    if (savePayment.data.success) {
+                      notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Payment saved',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                      });
+                    }
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Transfer completed successfully, thank you for your donation',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                }
+            } else {
+                notification.open({
+                    //message: 'Notification Title',
+                    description:
+                    'Please install and login to Hive keychain to transfer',
+                    onClick: () => {
+                    console.log('Notification Clicked!');
+                    },
+                });
+            }
           } catch (error) {
             notification.open({
               //message: 'Notification Title',
@@ -284,39 +286,60 @@ export default function Container() {
         case "lightning":
           try {
             const donationInCrypto = await getDonationAmountInCrypto("bitcoin");
-            /*notification.open({
-                            //message: 'Notification Title',
-                            description:
-                            'Loading, please wait',
-                            onClick: () => {
-                            console.log('Notification Clicked!');
-                            },
-                        });
-                        notification.open({
-                            //message: 'Notification Title',
-                            description:
-                            'Generating bar code, please be patient...',
-                            onClick: () => {
-                            console.log('Notification Clicked!');
-                            },
-                        });
-                                            
-                        const memo = `One time donation in support of cttpodcast`;
-                        const getLightningInvoice = await axios.get(`https://api.v4v.app/v1/new_invoice_hive?hive_accname=cttpodcast&amount=${parseFloat(donationAmount).toFixed(3)}&currency=HIVE&usd_hbd=false&app_name=ctt_donations&expiry=300&message=${memo}&qr_code=base64_png`)
-                        console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationAmount).toFixed(3))
-                        console.log(getLightningInvoice)
-                        notification.open({
-                            //message: 'Notification Title',
-                            description:
-                            'Almost done!',
-                            onClick: () => {
-                            console.log('Notification Clicked!');
-                            },
-                        });
-                        setLightningInvoice(getLightningInvoice.data.payment_request)
-                        setLightningQr(getLightningInvoice.data.qr_code_base64);
-                        console.log('base64', getLightningInvoice.data.qr_code_base64)
-                        setQrDisp(true)*/
+            console.log('crypto amount',donationInCrypto)
+            notification.open({
+                  //message: 'Notification Title',
+                  description:
+                  'Loading, please wait',
+                  onClick: () => {
+                  console.log('Notification Clicked!');
+                  },
+              });
+              notification.open({
+                  //message: 'Notification Title',
+                  description:
+                  'Generating bar code, please be patient...',
+                  onClick: () => {
+                  console.log('Notification Clicked!');
+                  },
+              });
+                                  
+              const memo = `One time donation in support of cttpodcast`;
+              const getLightningInvoice = await axios.get(`https://api.v4v.app/v1/new_invoice_hive?hive_accname=cttpodcast&amount=${parseFloat(donationAmount).toFixed(3)}&currency=HIVE&usd_hbd=false&app_name=ctt_donations&expiry=300&message=${memo}&qr_code=base64_png`)
+              console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationAmount).toFixed(3))
+              console.log(getLightningInvoice)
+              notification.open({
+                  //message: 'Notification Title',
+                  description:
+                  'Almost done!',
+                  onClick: () => {
+                  console.log('Notification Clicked!');
+                  },
+              });
+              setLightningInvoice(getLightningInvoice.data.payment_request)
+              setLightningQr(getLightningInvoice.data.qr_code_base64);
+              console.log('base64', getLightningInvoice.data)
+              setQrDisp(true)
+              let paymentObj = {};
+              paymentObj.name = donorFullName;
+              paymentObj.hiveUsername = donorHiveUsername;
+              paymentObj.email = donorEmail;
+              paymentObj.donationAmountInDollars = donationAmount;
+              paymentObj.donationAmountInCrypto = donationInCrypto;
+              paymentObj.paymentOption = paymentOption;
+              paymentObj.transactionId = getLightningInvoice.data.payment_hash;
+              const savePayment = await axios.post(`${environment.staging}/save-pending-payment`, paymentObj)
+
+              if (savePayment.data.success) {
+                notification.open({
+                  //message: 'Notification Title',
+                  description:
+                  'Payment saved, pending confirmation',
+                  onClick: () => {
+                  console.log('Notification Clicked!');
+                  },
+                });
+              }
           } catch (error) {
             console.log(error);
             notification.open({
@@ -330,34 +353,24 @@ export default function Container() {
           break;
         case "hivepay":
           try {
-            notification.open({
-              //message: 'Notification Title',
-              description: "Loading, please wait",
-              onClick: () => {
-                console.log("Notification Clicked!");
-              },
-            });
-
             setHivePayModal(true);
           } catch (error) {}
           break;
         case "btc":
           try {
             const donationInCrypto = await getDonationAmountInCrypto("bitcoin");
+            console.log('crypto amount',donationInCrypto)
           } catch (error) {}
           break;
         case "xlm":
           try {
             const donationInCrypto = await getDonationAmountInCrypto("stellar");
+            console.log('crypto amount',donationInCrypto)
           } catch (error) {}
           break;
         default:
         // code block
       }
-      setTimeout(async () => {
-        const paymentObjDeets = await preparePaymentObj();
-        console.log(paymentObjDeets);
-      }, 8000);
     } catch (error) {
       notification.open({
         //message: 'Notification Title',
@@ -411,20 +424,302 @@ export default function Container() {
   };
 
   const onEnterRecDetailsFinish = (values) => {
-    let subLength = 1;
-    if (recDonationPlan === "weekly") subLength = noOfWeeks;
-    if (recDonationPlan === "monthly") subLength = noOfMonths;
-    if (recDonationPlan === "knighthood") subLength = 20;
-    console.log(
-      "Success:",
-      donationAmount,
-      donorFullName,
-      donorHiveUsername,
-      donorEmail,
-      paymentOption,
-      subLength
-    );
+    if (recDonationPlan === "weekly") {
+      setSubscriptionLength(noOfWeeks);
+      setDonationAmount(4 * noOfWeeks)
+    }
+    if (recDonationPlan === "monthly") {
+      setSubscriptionLength(noOfMonths);
+      setDonationAmount(50 * noOfMonths)
+    }
+    if (recDonationPlan === "knighthood") {
+      setSubscriptionLength(20);
+      setDonationAmount(50 * 20);
+    }
+    setRunRec(true)
   };
+
+  const firstUpdate = useRef(true);
+
+  useLayoutEffect(() => {
+    if (firstUpdate.current) {
+      firstUpdate.current = false;
+      return;
+    }
+
+    if (runRec == true) {  
+      console.log(
+        "Success:",
+        donationAmount,
+        donorFullName,
+        donorHiveUsername,
+        donorEmail,
+        paymentOption,
+        subscriptionLength
+      );
+      const runOps = async () => {
+        try {
+          switch (paymentOption) {
+            case "hive":
+              console.log('sending off')
+              try {
+                const donationInCrypto = await getDonationAmountInCrypto("hive");
+                console.log('crypto amount',donationInCrypto)
+                const memo = `A donation for ${recDonationPlan}(${subscriptionLength}) subscription plan to cttpodcast of a total amount of ${donationInCrypto} HIVE`;
+                
+                if (isKeychainInstalled) {
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Loading, please wait',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                    const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestTransfer', donorHiveUsername, 'cttpodcast', parseFloat(donationInCrypto).toFixed(3), memo, 'HIVE');
+
+                    if (success) {
+                        let paymentObj = {};
+                        paymentObj.name = donorFullName;
+                        paymentObj.hiveUsername = donorHiveUsername;
+                        paymentObj.email = donorEmail;
+                        paymentObj.donationAmountInDollars = donationAmount;
+                        paymentObj.donationAmountInCrypto = donationInCrypto;
+                        paymentObj.paymentOption = paymentOption;
+
+                        const savePayment = await axios.post(`${environment.staging}/save-payment`, paymentObj)
+
+                        if (savePayment.data.success) {
+                          notification.open({
+                            //message: 'Notification Title',
+                            description:
+                            'Payment saved',
+                            onClick: () => {
+                            console.log('Notification Clicked!');
+                            },
+                          });
+                        }
+                        notification.open({
+                            //message: 'Notification Title',
+                            description:
+                            'Transfer completed successfully, thank you for your donation',
+                            onClick: () => {
+                            console.log('Notification Clicked!');
+                            },
+                        });
+                    }
+                } else {
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Please install and login to Hive keychain to transfer',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                }
+                console.log(donationAmount, typeof donationAmount)
+              } catch (error) {
+                console.log(error)
+                notification.open({
+                  //message: 'Notification Title',
+                  description: "Error encountered, please try again",
+                  onClick: () => {
+                    console.log("Notification Clicked!");
+                  },
+                });
+              }
+              break;
+            case "hbd":
+              try {
+                const donationInCrypto = await getDonationAmountInCrypto("hive_dollar");
+                console.log('crypto amount',donationInCrypto)
+    
+                // do your thing
+                if (isKeychainInstalled) {
+                    console.log('installed')
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Loading, please wait',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                    
+                    const memo = `A donation for ${recDonationPlan}(${subscriptionLength}) subscription plan to cttpodcast of a total amount of ${donationInCrypto}`;
+                    console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationInCrypto).toFixed(3), memo)
+
+                    let operation = [
+                        "transfer",
+                        {
+                            "from": donorHiveUsername,
+                            "to": 'cttpodcast',
+                            "amount": parseFloat(donationInCrypto).toFixed(3) + " HBD",
+                            "memo": memo
+                        }
+                    ]
+
+                    const {success, msg, cancel, notInstalled, notActive} = await keychain(window, 'requestBroadcast', donorHiveUsername, [operation], 'Active');
+
+                    if (success) {
+                        let paymentObj = {};
+                        paymentObj.name = donorFullName;
+                        paymentObj.hiveUsername = donorHiveUsername;
+                        paymentObj.email = donorEmail;
+                        paymentObj.donationAmountInDollars = donationAmount;
+                        paymentObj.donationAmountInCrypto = donationInCrypto;
+                        paymentObj.paymentOption = paymentOption;
+
+                        const savePayment = await axios.post(`${environment.staging}/save-payment`, paymentObj)
+
+                        if (savePayment.data.success) {
+                          notification.open({
+                            //message: 'Notification Title',
+                            description:
+                            'Payment saved',
+                            onClick: () => {
+                            console.log('Notification Clicked!');
+                            },
+                          });
+                        }
+                        notification.open({
+                            //message: 'Notification Title',
+                            description:
+                            'Transfer completed successfully, thank you for your donation',
+                            onClick: () => {
+                            console.log('Notification Clicked!');
+                            },
+                        });
+                    }
+                } else {
+                    notification.open({
+                        //message: 'Notification Title',
+                        description:
+                        'Please install and login to Hive keychain to transfer',
+                        onClick: () => {
+                        console.log('Notification Clicked!');
+                        },
+                    });
+                }
+              } catch (error) {
+                notification.open({
+                  //message: 'Notification Title',
+                  description: "Error encountered, please try again",
+                  onClick: () => {
+                    console.log("Notification Clicked!");
+                  },
+                });
+                console.log(error);
+              }
+              break;
+            case "lightning":
+              try {
+                const donationInCrypto = await getDonationAmountInCrypto("bitcoin");
+                console.log('crypto amount lightning',donationInCrypto)
+                notification.open({
+                      //message: 'Notification Title',
+                      description:
+                      'Loading, please wait',
+                      onClick: () => {
+                      console.log('Notification Clicked!');
+                      },
+                  });
+                  notification.open({
+                      //message: 'Notification Title',
+                      description:
+                      'Generating bar code, please be patient...',
+                      onClick: () => {
+                      console.log('Notification Clicked!');
+                      },
+                  });
+                                      
+                  const memo = `A donation for ${recDonationPlan}(${subscriptionLength}) subscription plan to cttpodcast of a total amount of ${donationInCrypto}`;
+                  const getLightningInvoice = await axios.get(`https://api.v4v.app/v1/new_invoice_hive?hive_accname=cttpodcast&amount=${parseFloat(donationAmount).toFixed(3)}&currency=HIVE&usd_hbd=false&app_name=ctt_donations&expiry=300&message=${memo}&qr_code=base64_png`)
+                  console.log(donorHiveUsername, 'cttpodcast', parseFloat(donationAmount).toFixed(3))
+                  console.log(getLightningInvoice)
+                  notification.open({
+                      //message: 'Notification Title',
+                      description:
+                      'Almost done!',
+                      onClick: () => {
+                      console.log('Notification Clicked!');
+                      },
+                  });
+                  setLightningInvoice(getLightningInvoice.data.payment_request)
+                  setLightningQr(getLightningInvoice.data.qr_code_base64);
+                  console.log('base64', getLightningInvoice.data)
+                  setQrDisp(true)
+                  let paymentObj = {};
+                  paymentObj.name = donorFullName;
+                  paymentObj.hiveUsername = donorHiveUsername;
+                  paymentObj.email = donorEmail;
+                  paymentObj.donationAmountInDollars = donationAmount;
+                  paymentObj.donationAmountInCrypto = donationInCrypto;
+                  paymentObj.paymentOption = paymentOption;
+                  paymentObj.transactionId = getLightningInvoice.data.payment_hash;
+                  const savePayment = await axios.post(`${environment.staging}/save-pending-payment`, paymentObj)
+
+                  if (savePayment.data.success) {
+                    notification.open({
+                      //message: 'Notification Title',
+                      description:
+                      'Payment saved, pending confirmation',
+                      onClick: () => {
+                      console.log('Notification Clicked!');
+                      },
+                    });
+                  }
+              } catch (error) {
+                console.log(error);
+                notification.open({
+                  //message: 'Notification Title',
+                  description: "Error encountered, please try again",
+                  onClick: () => {
+                    console.log("Notification Clicked!");
+                  },
+                });
+              }
+              break;
+            case "hivepay":
+              try {
+                setHivePayModal(true);
+              } catch (error) {}
+              break;
+            case "btc":
+              try {
+                const donationInCrypto = await getDonationAmountInCrypto("bitcoin");
+                console.log('crypto amount',donationInCrypto)
+              } catch (error) {}
+              break;
+            case "xlm":
+              try {
+                const donationInCrypto = await getDonationAmountInCrypto("stellar");
+                console.log('crypto amount',donationInCrypto)
+              } catch (error) {}
+              break;
+            default:
+            // code block
+          }
+        } catch (error) {
+          notification.open({
+            //message: 'Notification Title',
+            description: "Error encountered",
+            onClick: () => {
+              console.log("Notification Clicked!");
+            },
+          });
+        }
+      }
+    
+      // call the function
+      runOps()
+        // make sure to catch any error
+        .catch(console.error);
+    }
+
+    
+  }, [runRec])
 
   const onEnterRecDetailsFinishFailed = (errorInfo) => {
     console.log("Failed:", errorInfo);
@@ -886,7 +1181,7 @@ export default function Container() {
             <h3>Layaway Knighthood/Monthly</h3>
             <p style={{ color: "#666" }}>
               Commit to a $50/month donation for 20 months and earn a
-              knighthood.
+              knighthood. This also earns you a boarding pass to the Mothership
             </p>
             <Button
               style={{
@@ -900,7 +1195,7 @@ export default function Container() {
               onClick={() => {
                 setDonationPlan("recurring");
                 setStraightToPlan(true);
-                setRecDonationPlan("knighthood");
+                setRecDonationPlan("monthly");
                 showDonationPlanModal();
               }}
             >
@@ -932,17 +1227,16 @@ export default function Container() {
                 fontWeight: "700",
               }}
               onClick={() => {
-                setDonationPlan("recurring");
-                setStraightToPlan(true);
-                setRecDonationPlan("monthly");
-                showDonationPlanModal();
+                setDonationPlan("once");
+                setDonationAmount("others");
+                showOneTimeModal();
               }}
             >
               DONATE NOW
             </Button>
           </Card>
 
-          <Card
+          {/*<Card
             style={{
               margin: "1.5rem auto",
               borderTop: "none",
@@ -973,7 +1267,7 @@ export default function Container() {
             >
               DONATE NOW
             </Button>
-          </Card>
+            </Card>*/}
 
           <Card
             style={{
@@ -1446,12 +1740,7 @@ export default function Container() {
         open={isDonationPlanModalOpen}
         onOk={handleDonationPlanOk}
         onCancel={handleDonationPlanCancel}
-        okButtonProps={{
-          style: { ...{ backgroundColor: "#c1172c", color: "#fff" } },
-        }}
-        cancelButtonProps={{
-          style: { ...{ backgroundColor: "#666", color: "#fff" } },
-        }}
+        footer={null}
       >
         <Radio.Group
           defaultValue={paymentOption}
@@ -1499,12 +1788,7 @@ export default function Container() {
         open={donationChosen}
         onOk={handleDonationChosenOk}
         onCancel={handleDonationChosenCancel}
-        okButtonProps={{
-          style: { ...{ backgroundColor: "#c1172c", color: "#fff" } },
-        }}
-        cancelButtonProps={{
-          style: { ...{ backgroundColor: "#666", color: "#fff" } },
-        }}
+        footer={null}
       >
         <h4 style={{ textAlign: "center" }}>
           Donation Plan: {recDonationPlan}
@@ -1805,8 +2089,69 @@ export default function Container() {
             </Form>
           </Card>
         </div>
+        {paymentOption === "lightning" && qrDisp && (
+          <Card>
+            <Row>
+              <Col span={20}>
+                <Paragraph ellipsis={ellipsis}>{lightningInvoice}</Paragraph>
+                <p>
+                  <span
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      if (ellText === "Reduce") {
+                        setEllText("Expand");
+                      }
+                      if (ellText === "Expand") {
+                        setEllText("Reduce");
+                      }
+                      setEllipsis(!ellipsis);
+                    }}
+                  >
+                    <b>{ellText}</b>
+                  </span>
+                </p>
+              </Col>
+              <Col span={4}>
+                <CopyOutlined
+                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(lightningInvoice);
+
+                      notification.open({
+                        //message: 'Notification Title',
+                        description: "Copied successfully",
+                        onClick: () => {
+                          console.log("Copied successfullly");
+                        },
+                      });
+                    } catch (error) {
+                      notification.open({
+                        //message: 'Notification Title',
+                        description: "Error",
+                        onClick: () => {
+                          console.log("Notification Clicked!");
+                        },
+                      });
+                    }
+                  }}
+                />
+              </Col>
+              <Col span={24} id="qr-encloser">
+                <div style={{ width: "50%" }}>
+                  <a href={`lightning:${lightningInvoice}`}>
+                    <img
+                      src={`data:image/png;base64,${lightningQr}`}
+                      style={{ width: "100%" }}
+                    />
+                  </a>
+                </div>
+              </Col>
+            </Row>
+          </Card>
+        )}
       </Modal>
-      <Modal open={hivePayModal}>
+      <Modal open={hivePayModal} onCancel={() => setHivePayModal(false)} footer={null}>
         <h3>HivePay</h3>
         <form action="https://hivepay.io/pay/" method="post">
           <input type="hidden" name="merchant" value="cttpodcast" />
@@ -1818,29 +2163,29 @@ export default function Container() {
           <input
             type="hidden"
             name="description"
-            value={`Donation from ${donorFullName} to cttpodcast`}
+            value={`Donation from ${donorFullName} to cttpodcast through Hivepay`}
           />
           <input
             type="hidden"
             name="notify_url"
-            value="https://cttdonations.surge.sh?status=successful"
+            value={"https://ctt-api.onrender.com/run-hivepay"}
           />
           <input
             type="hidden"
             name="return_url"
-            value="https://cttdonations.surge.sh?status=successful"
+            value={"https://cttdonations.surge.sh/"}
           />
           <input type="hidden" name="amount" value={donationAmount} />
           <input type="hidden" name="base_currency" value="USD" />
           <input
             type="hidden"
             name="merchant_email"
-            value="olatunde.oladunni.dev@gmail.com"
+            value={"olatunde.oladunni.dev@gmail.com"}
           />
           <input
             type="hidden"
             name="merchant_image"
-            value="https://images.hive.blog/u/cttpodcast/avatar"
+            value={"https://images.hive.blog/u/cttpodcast/avatar"}
           />
           <input
             type="hidden"
@@ -1855,7 +2200,7 @@ export default function Container() {
           <input
             type="hidden"
             name="cancel_url"
-            value="https://cttdonations.surge.sh?status=failed"
+            value={"https://cttdonations.surge.sh/"}
           />
           <input
             type="image"

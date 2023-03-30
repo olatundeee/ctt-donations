@@ -1,5 +1,6 @@
 import Container from '../pages/home/Container';
 import Login from '../pages/login';
+import Dashboard from '../pages/dashboard';
 
 const routes = [
     {
@@ -17,7 +18,7 @@ const routes = [
     {
         key: "dashboard",
         route: "/dashboard",
-        component: <h1>This is the dashboard page</h1>
+        component: <Dashboard />
     }
 ]
 
